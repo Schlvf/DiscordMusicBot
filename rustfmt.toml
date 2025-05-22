@@ -1,0 +1,17 @@
+# Controls how imports are grouped and ordered
+edition = "2021"
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
+reorder_imports = true
+reorder_modules = true
+
+# Makes long import lists wrap across lines (cleaner diffs)
+wrap_imports = true
+imports_layout = "HorizontalVertical"
+
+
+# Consistent use of trailing commas in multiline
+trailing_comma = "Always"
+
+# Optional: Makes closure arguments less noisy
+closure_style = "Rfc"
