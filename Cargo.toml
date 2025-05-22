@@ -1,0 +1,16 @@
+[package]
+name = "DiscordBot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.45.0", features = ["macros", "rt-multi-thread"] }
+poise = { version = "0.6.1" }
+dotenvy = { version = "0.15.7" }
+
+[dev-dependencies]
+
+[dev-dependencies.cargo-husky]
+version = "1.5.0"
+default-features = false
+features = ["precommit-hook", "run-cargo-test", "run-cargo-clippy"]
