@@ -72,9 +72,9 @@ pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
         Ok(_) => {
             ctx.say("Joined voice channel").await?;
         }
-        Err(e) => {
-            eprintln!("Failed to join voice channel: {:?}", e);
+        Err(err) => {
             ctx.say("Failed to join voice channel").await?;
+            eprintln!("Join error: {:?}", err);
         }
     }
 
@@ -111,8 +111,13 @@ pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
         let call = call_mutex.lock().await;
 
         match call.queue().pause() {
-            Ok(_) => ctx.say("Paused the player").await?,
-            Err(_) => ctx.say("Unable to pause the player").await?,
+            Ok(_) => {
+                ctx.say("Paused the player").await?;
+            }
+            Err(err) => {
+                ctx.say("Unable to pause the player").await?;
+                eprintln!("Pause error: {:?}", err);
+            }
         };
     } else {
         ctx.say("Not connected").await?;
@@ -133,8 +138,13 @@ pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
         let call = call_mutex.lock().await;
 
         match call.queue().resume() {
-            Ok(_) => ctx.say("Resumed the player").await?,
-            Err(_) => ctx.say("Unable to resume the player").await?,
+            Ok(_) => {
+                ctx.say("Resumed the player").await?;
+            }
+            Err(err) => {
+                ctx.say("Unable to resume the player").await?;
+                eprintln!("Resume error: {:?}", err);
+            }
         };
     } else {
         ctx.say("Not connected").await?;
@@ -155,8 +165,13 @@ pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
         let call = call_mutex.lock().await;
 
         match call.queue().skip() {
-            Ok(_) => ctx.say("Skipping the current track").await?,
-            Err(_) => ctx.say("Unable to skip the current track").await?,
+            Ok(_) => {
+                ctx.say("Skipping the current track").await?;
+            }
+            Err(err) => {
+                ctx.say("Unable to skip the current track").await?;
+                eprintln!("Skip error: {:?}", err);
+            }
         };
     } else {
         ctx.say("Not connected").await?;
