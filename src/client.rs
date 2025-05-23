@@ -3,6 +3,7 @@ use crate::commands;
 use poise::serenity_prelude::prelude::SerenityError;
 use poise::serenity_prelude::{Client, ClientBuilder, GatewayIntents};
 use poise::{builtins, Command, Framework, FrameworkOptions};
+use songbird::SerenityInit;
 
 pub struct Data {}
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -27,12 +28,20 @@ pub async fn build_client() -> Result<Client, SerenityError> {
 
     ClientBuilder::new(token, intents)
         .framework(framework)
+        .register_songbird()
         .await
 }
 
 fn get_registered_commands() -> Vec<Command<Data, Error>> {
     vec![
         commands::ping(),
+        commands::play(),
+        commands::leave(),
+        commands::join(),
+        commands::pause(),
+        commands::resume(),
+        commands::stop(),
+        commands::skip(),
         // other commands...
     ]
 }
