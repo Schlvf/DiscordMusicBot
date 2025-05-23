@@ -8,9 +8,21 @@ lto = true
 debug = false
 
 [dependencies]
+
 dotenvy = { version = "0.15.7" }
 poise = { version = "0.6.1" }
-songbird = { version = "0.5.0" }
+songbird = { version = "0.5.0", features = ["builtin-queue"] }
+symphonia = { version = "0.5", features = [
+    "aac",    # for m4a/AAC
+    "mp3",    # if yt-dlp ever picks an MP3
+    "vorbis", # for Ogg/Vorbis
+    "flac",   # for FLAC streams
+    "isomp4", # for fragmented MP4/HLS support
+] }
+reqwest = { version = "0.12.15", default-features = false, features = [
+    "rustls-tls",
+    "json",
+] }
 tokio = { version = "1.45.0", features = ["macros", "rt-multi-thread"] }
 
 [dev-dependencies]
