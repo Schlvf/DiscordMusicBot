@@ -88,13 +88,19 @@ The very first time that you run the bot successfully the bot will trigger an ev
 
 If you don't see any errors in the logs just wait a minute and restart Discord by pressing `Ctrl` + `R` on desktop and the slash commands should be available once your Discord has fully restarted
 
+---
+
 > When I run the tool I see `Warning: Could not load .env file: path not found`
 
 This simply means that the program is not finding a `.env` file to load environmental variables, however, as long as the `DISCORD_TOKEN` variable is configured in your system the bot will work normally
 
+---
+
 > When I run the tool I see `missing DISCORD_TOKEN: NotPresent`
 
 This means that the `DISCORD_TOKEN` variable was not correctly configured in the system or the `.env` file. To fix this simply go back **Prepare the token** section and follow the instructions there
+
+---
 
 > When I run the tool I see `401 Unauthorized error`
 
@@ -104,13 +110,17 @@ If you see in the logs something like:
 
 This most likely means that your `DISCORD_TOKEN` is no longer valid. The token can become invalid for multiple reasons, but to fix it you can go back to the Discord developer site and reset your application token to generate a new one
 
+---
+
 > When I request a Youtube video the bot replies `failed to create audio: yt-dlp failed with non-zero status code: WARNING: [youtube] kaEGKHZvU: Signature extraction failed: Some formats may be missing`
 
 The Youtube API is constantly changing and those changes break `yt-dlp`. To fix these errors simply make sure that your `yt-dlp` is updated. To manually update it, open a powershell window and run the following command
 
-`yt-dlp -U`.
+`yt-dlp -U`
 
 You may need to do this from time to time but it will fix the problem 99% of the time, however, if for whatever reason the problem persists just give it some time and wait until a new version of `yt-dlp` is available
+
+---
 
 > When I request a Youtube video the bot replies `failed to create audio: yt-dlp failed with non-zero status code: ERROR: [youtube] h4dCXkgwM: Sign in to confirm your age. This video may be inappropriate for some users.`
 
