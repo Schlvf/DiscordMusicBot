@@ -2,18 +2,20 @@ use crate::client::{Context, Error};
 use reqwest::Client;
 use songbird::input::{Compose, YoutubeDl};
 
+/// Checks the bot’s latency and responsiveness
 #[poise::command(slash_command)]
 pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
     ctx.say("pong").await?;
     Ok(())
 }
 
+/// Plays audio from a given URL
 #[poise::command(slash_command)]
 pub async fn play(
     ctx: Context<'_>,
-    #[description = "YouTube URL or search term"] query: String,
+    #[description = "URL of the source"] url: String,
 ) -> Result<(), Error> {
-    if !&query.starts_with("http") {
+    if !&url.starts_with("http") {
         ctx.say("Missing valid url").await?;
         return Ok(());
     }
@@ -29,7 +31,7 @@ pub async fn play(
         ctx.say("Request received").await?;
 
         let mut call = call_mutex.lock().await;
-        let mut src = YoutubeDl::new(Client::new(), query.clone()).user_args(vec![
+        let mut src = YoutubeDl::new(Client::new(), url.clone()).user_args(vec![
             "-f".into(),
             "--no-playlist".into(), // skip playlist-expansion
         ]);
@@ -51,6 +53,7 @@ pub async fn play(
     Ok(())
 }
 
+/// Joins your current voice channel
 #[poise::command(slash_command)]
 pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
@@ -67,7 +70,6 @@ pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
         .ok_or("Songbird not initialized")?
         .clone();
 
-    // Join the VC (or move)
     match manager.join(guild_id, channel_id).await {
         Ok(_) => {
             ctx.say("Joined voice channel").await?;
@@ -81,6 +83,7 @@ pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+/// Leaves the voice channel
 #[poise::command(slash_command)]
 pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
@@ -99,6 +102,7 @@ pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+/// Pauses the currently playing track
 #[poise::command(slash_command)]
 pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
@@ -126,6 +130,7 @@ pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+/// Resumes playback of the current track
 #[poise::command(slash_command)]
 pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
@@ -153,6 +158,7 @@ pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+/// Skips the currently playing track
 #[poise::command(slash_command)]
 pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
@@ -180,6 +186,7 @@ pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+/// Stops playback and clears the queue
 #[poise::command(slash_command)]
 pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
