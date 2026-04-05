@@ -3,9 +3,13 @@ use crate::commands;
 use poise::serenity_prelude::prelude::SerenityError;
 use poise::serenity_prelude::{Client, ClientBuilder, GatewayIntents};
 use poise::{builtins, Command, Framework, FrameworkOptions};
+use reqwest::Client as HttpClient;
 use songbird::SerenityInit;
 
-pub struct Data {}
+pub struct Data {
+    pub http_client: HttpClient,
+}
+
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 pub type Context<'a> = poise::Context<'a, Data, Error>;
 
@@ -21,7 +25,9 @@ pub async fn build_client() -> Result<Client, SerenityError> {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data {})
+                Ok(Data {
+                    http_client: HttpClient::new(),
+                })
             })
         })
         .build();
