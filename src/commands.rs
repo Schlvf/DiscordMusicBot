@@ -1,207 +1,188 @@
 use crate::client::{Context, Error};
-use reqwest::Client;
+use poise::serenity_prelude::GuildId;
 use songbird::input::{Compose, YoutubeDl};
+use songbird::{Call, Songbird};
+use std::sync::Arc;
 
-/// Checks the bot’s latency and responsiveness
+// ---------- Helpers ----------
+
+async fn get_manager(ctx: &Context<'_>) -> Result<Arc<Songbird>, Error> {
+    songbird::get(ctx.serenity_context())
+        .await
+        .ok_or_else(|| "Songbird not initialized".into())
+}
+
+fn get_guild_id(ctx: &Context<'_>) -> Result<GuildId, Error> {
+    ctx.guild_id().ok_or_else(|| "Not in a guild".into())
+}
+
+async fn get_call(
+    manager: &Songbird,
+    guild_id: GuildId,
+) -> Result<std::sync::Arc<tokio::sync::Mutex<Call>>, Error> {
+    manager
+        .get(guild_id)
+        .ok_or_else(|| -> Error { "Not connected to a voice channel".into() })
+}
+
+// Small helper to convert errors into user messages
+macro_rules! user_error {
+    ($ctx:expr, $expr:expr) => {
+        match $expr {
+            Ok(val) => val,
+            Err(err) => {
+                $ctx.say(err.to_string()).await?;
+                return Ok(());
+            }
+        }
+    };
+}
+
+// ---------- Commands ----------
+
 #[poise::command(slash_command)]
 pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer().await?;
     ctx.say("pong").await?;
     Ok(())
 }
 
-/// Plays audio from a given URL
+#[poise::command(slash_command)]
+pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer().await?;
+
+    let guild_id = user_error!(ctx, get_guild_id(&ctx));
+
+    let channel_id = match ctx.guild().and_then(|g| {
+        g.voice_states
+            .get(&ctx.author().id)
+            .and_then(|vs| vs.channel_id)
+    }) {
+        Some(channel) => channel,
+        None => {
+            ctx.say("You must be in a voice channel").await?;
+            return Ok(());
+        }
+    };
+
+    let manager = user_error!(ctx, get_manager(&ctx).await);
+
+    if let Err(err) = manager.join(guild_id, channel_id).await {
+        ctx.say("Failed to join voice channel").await?;
+        eprintln!("Join error: {:?}", err);
+    } else {
+        ctx.say("Joined voice channel").await?;
+    }
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer().await?;
+
+    let guild_id = user_error!(ctx, get_guild_id(&ctx));
+    let manager = user_error!(ctx, get_manager(&ctx).await);
+
+    if manager.get(guild_id).is_none() {
+        ctx.say("Not connected").await?;
+        return Ok(());
+    }
+
+    manager.remove(guild_id).await?;
+    ctx.say("Left voice channel").await?;
+
+    Ok(())
+}
+
 #[poise::command(slash_command)]
 pub async fn play(
     ctx: Context<'_>,
     #[description = "URL of the source"] url: String,
 ) -> Result<(), Error> {
-    if !&url.starts_with("http") {
-        ctx.say("Missing valid url").await?;
+    ctx.defer().await?;
+
+    if !url.starts_with("http") {
+        ctx.say("Invalid URL").await?;
         return Ok(());
     }
 
-    let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
+    let guild_id = user_error!(ctx, get_guild_id(&ctx));
+    let manager = user_error!(ctx, get_manager(&ctx).await);
+    let call_mutex = get_call(&manager, guild_id).await?;
+    let mut call = call_mutex.lock().await;
 
-    let manager = songbird::get(ctx.serenity_context())
-        .await
-        .ok_or("Songbird not initialized")?
-        .clone();
+    let client = &ctx.data().http_client;
 
-    if let Some(call_mutex) = manager.get(guild_id) {
-        ctx.say("Request received").await?;
+    let mut src = YoutubeDl::new(client.clone(), url.clone())
+        .user_args(vec!["-f".into(), "--no-playlist".into()]);
 
-        let mut call = call_mutex.lock().await;
-        let mut src = YoutubeDl::new(Client::new(), url.clone()).user_args(vec![
-            "-f".into(),
-            "--no-playlist".into(), // skip playlist-expansion
-        ]);
+    let metadata = src.aux_metadata().await?;
 
-        let metadata = src.aux_metadata().await?;
+    call.enqueue_input(src.into()).await.set_volume(0.1)?;
 
-        call.enqueue_input(src.into()).await.set_volume(0.1)?;
+    let title = metadata.title.unwrap_or_else(|| "Unknown".to_string());
+    let position = call.queue().len();
 
-        let output = format!(
-            "Added to the queue '{}' in position {}",
-            metadata.title.as_ref().unwrap_or(&"Unknown".to_string()),
-            call.queue().len()
-        );
-        ctx.channel_id().say(&ctx.http(), output).await?;
-    } else {
-        ctx.say("Not in a voice channel to play in").await?;
-    }
+    ctx.say(format!(
+        "Added '{}' to queue at position {}",
+        title, position
+    ))
+    .await?;
 
     Ok(())
 }
 
-/// Joins your current voice channel
-#[poise::command(slash_command)]
-pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
-    let channel_id = ctx
-        .guild()
-        .ok_or("Unable to find guild for this context")?
-        .voice_states
-        .get(&ctx.author().id)
-        .and_then(|voice_state| voice_state.channel_id)
-        .ok_or("You must be in a voice channel")?;
+// ---------- Queue Actions ----------
 
-    let manager = songbird::get(ctx.serenity_context())
-        .await
-        .ok_or("Songbird not initialized")?
-        .clone();
+async fn handle_queue_action<F>(ctx: Context<'_>, action: F, success_msg: &str) -> Result<(), Error>
+where
+    F: FnOnce(&Call) -> Result<(), songbird::error::ControlError>,
+{
+    let guild_id = user_error!(ctx, get_guild_id(&ctx));
+    let manager = user_error!(ctx, get_manager(&ctx).await);
+    let call_mutex = get_call(&manager, guild_id).await?;
+    let call = call_mutex.lock().await;
 
-    match manager.join(guild_id, channel_id).await {
-        Ok(_) => {
-            ctx.say("Joined voice channel").await?;
-        }
-        Err(err) => {
-            ctx.say("Failed to join voice channel").await?;
-            eprintln!("Join error: {:?}", err);
-        }
+    if let Err(err) = action(&call) {
+        ctx.say("Queue operation failed").await?;
+        eprintln!("Queue error: {:?}", err);
+        return Ok(());
     }
 
+    ctx.say(success_msg).await?;
     Ok(())
 }
 
-/// Leaves the voice channel
-#[poise::command(slash_command)]
-pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
-    let manager = songbird::get(ctx.serenity_context())
-        .await
-        .ok_or("Songbird not initialized")?
-        .clone();
-
-    if manager.get(guild_id).is_some() {
-        manager.remove(guild_id).await?;
-        ctx.say("Left voice channel").await?;
-    } else {
-        ctx.say("Not connected").await?;
-    }
-
-    Ok(())
-}
-
-/// Pauses the currently playing track
 #[poise::command(slash_command)]
 pub async fn pause(ctx: Context<'_>) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
-    let manager = songbird::get(ctx.serenity_context())
-        .await
-        .ok_or("Songbird not initialized")?
-        .clone();
-
-    if let Some(call_mutex) = manager.get(guild_id) {
-        let call = call_mutex.lock().await;
-
-        match call.queue().pause() {
-            Ok(_) => {
-                ctx.say("Paused the player").await?;
-            }
-            Err(err) => {
-                ctx.say("Unable to pause the player").await?;
-                eprintln!("Pause error: {:?}", err);
-            }
-        };
-    } else {
-        ctx.say("Not connected").await?;
-    }
-
-    Ok(())
+    ctx.defer().await?;
+    handle_queue_action(ctx, |c| c.queue().pause(), "Paused").await
 }
 
-/// Resumes playback of the current track
 #[poise::command(slash_command)]
 pub async fn resume(ctx: Context<'_>) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
-    let manager = songbird::get(ctx.serenity_context())
-        .await
-        .ok_or("Songbird not initialized")?
-        .clone();
-
-    if let Some(call_mutex) = manager.get(guild_id) {
-        let call = call_mutex.lock().await;
-
-        match call.queue().resume() {
-            Ok(_) => {
-                ctx.say("Resumed the player").await?;
-            }
-            Err(err) => {
-                ctx.say("Unable to resume the player").await?;
-                eprintln!("Resume error: {:?}", err);
-            }
-        };
-    } else {
-        ctx.say("Not connected").await?;
-    }
-
-    Ok(())
+    ctx.defer().await?;
+    handle_queue_action(ctx, |c| c.queue().resume(), "Resumed").await
 }
 
-/// Skips the currently playing track
 #[poise::command(slash_command)]
 pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
-    let manager = songbird::get(ctx.serenity_context())
-        .await
-        .ok_or("Songbird not initialized")?
-        .clone();
-
-    if let Some(call_mutex) = manager.get(guild_id) {
-        let call = call_mutex.lock().await;
-
-        match call.queue().skip() {
-            Ok(_) => {
-                ctx.say("Skipping the current track").await?;
-            }
-            Err(err) => {
-                ctx.say("Unable to skip the current track").await?;
-                eprintln!("Skip error: {:?}", err);
-            }
-        };
-    } else {
-        ctx.say("Not connected").await?;
-    }
-
-    Ok(())
+    ctx.defer().await?;
+    handle_queue_action(ctx, |c| c.queue().skip(), "Skipped").await
 }
 
-/// Stops playback and clears the queue
 #[poise::command(slash_command)]
 pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().ok_or("Not in a guild")?;
-    let manager = songbird::get(ctx.serenity_context())
-        .await
-        .ok_or("Songbird not initialized")?
-        .clone();
+    ctx.defer().await?;
 
-    if let Some(call_mutex) = manager.get(guild_id) {
-        let call = call_mutex.lock().await;
-        call.queue().stop();
-        ctx.say("Stopping the current session").await?;
-    } else {
-        ctx.say("Not connected").await?;
-    }
+    let guild_id = user_error!(ctx, get_guild_id(&ctx));
+    let manager = user_error!(ctx, get_manager(&ctx).await);
+    let call_mutex = get_call(&manager, guild_id).await?;
+    let call = call_mutex.lock().await;
 
+    call.queue().stop();
+
+    ctx.say("Stopped playback").await?;
     Ok(())
 }

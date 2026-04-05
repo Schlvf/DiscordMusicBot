@@ -4,14 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [profile.release]
-lto = true
-debug = false
+opt-level = "z"      # optimize for size (or "s")
+lto = true           # link-time optimization
+codegen-units = 1    # better optimization, smaller binary
+panic = "abort"      # remove unwinding machinery
+strip = true         # remove debug symbols
 
 [dependencies]
-which = "7.0.3"
+which = "8.0.2"
 dotenvy = { version = "0.15.7" }
 poise = { version = "0.6.1" }
-songbird = { version = "0.5.0", features = ["builtin-queue"] }
+songbird = { git = "https://github.com/serenity-rs/songbird", rev="14174165de616ca09bd12df9f8c0b1be25900279", features = ["builtin-queue"]}
 symphonia = { version = "0.5", features = [
     "aac",    # for m4a/AAC
     "mp3",    # if yt-dlp ever picks an MP3
@@ -24,8 +27,6 @@ reqwest = { version = "0.12.15", default-features = false, features = [
     "json",
 ] }
 tokio = { version = "1.45.0", features = ["macros", "rt-multi-thread"] }
-
-[dev-dependencies]
 
 [dev-dependencies.cargo-husky]
 version = "1.5.0"
