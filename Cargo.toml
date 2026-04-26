@@ -13,8 +13,8 @@ strip = true         # remove debug symbols
 [dependencies]
 which = "8.0.2"
 dotenvy = { version = "0.15.7" }
-poise = { version = "0.6.1" }
-songbird = { git = "https://github.com/serenity-rs/songbird", rev="14174165de616ca09bd12df9f8c0b1be25900279", features = ["builtin-queue"]}
+poise = { version = "0.6.2" }
+songbird = {version = "0.6.0", features = ["builtin-queue"]}
 symphonia = { version = "0.5", features = [
     "aac",    # for m4a/AAC
     "mp3",    # if yt-dlp ever picks an MP3
