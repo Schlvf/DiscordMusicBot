@@ -32,10 +32,12 @@ pub fn verify_dependencies() -> Result<(), BotError> {
 
 pub fn load_environment() -> Result<(), BotError> {
     dotenv().map_err(|e| BotError::Environment(format!("Failed to load .env file: {}", e)))?;
+    let volume = commands::get_default_volume();
+    eprintln!("Music volume: {:.2}%", volume * 100.0);
     Ok(())
 }
 
-async fn run() -> Result<(), BotError> {
+async fn run() -> Result<(), client::Error> {
     load_environment()?;
     verify_dependencies()?;
 

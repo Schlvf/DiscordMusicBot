@@ -1,6 +1,6 @@
+use songbird::input::AudioStreamError;
 use std::error::Error;
 use std::fmt;
-use songbird::input::AudioStreamError;
 
 #[derive(Debug)]
 pub enum BotError {
@@ -59,6 +59,7 @@ impl From<CommandError> for BotError {
 pub enum CommandError {
     NotInGuild,
     NotConnected,
+    NotInVoiceChannel,
     SongbirdNotInitialized,
     InvalidUrl,
     JoinFailed,
@@ -72,6 +73,7 @@ impl fmt::Display for CommandError {
         match self {
             CommandError::NotInGuild => write!(f, "Not in a guild"),
             CommandError::NotConnected => write!(f, "Not connected to a voice channel"),
+            CommandError::NotInVoiceChannel => write!(f, "You must be in a voice channel"),
             CommandError::SongbirdNotInitialized => write!(f, "Songbird not initialized"),
             CommandError::InvalidUrl => write!(f, "Invalid URL"),
             CommandError::JoinFailed => write!(f, "Failed to join voice channel"),
