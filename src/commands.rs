@@ -104,8 +104,6 @@ pub async fn play(
     }
 
     let guild_id = get_guild_id(&ctx)?;
-
-    // Check if user is in a voice channel
     let _channel_id = match ctx.guild().and_then(|g| {
         g.voice_states
             .get(&ctx.author().id)
@@ -186,8 +184,13 @@ pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(slash_command)]
 pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;
-    handle_queue_action(ctx, |c| {
-        let _: () = c.queue().stop();
-        Ok(())
-    }, "Stopped").await
+    handle_queue_action(
+        ctx,
+        |c| {
+            let _: () = c.queue().stop();
+            Ok(())
+        },
+        "Stopped",
+    )
+    .await
 }
