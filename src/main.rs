@@ -1,28 +1,56 @@
 mod client;
 mod commands;
+mod config;
+mod errors;
 
 use dotenvy::dotenv;
+use errors::BotError;
+use std::io;
 use which::which;
+
+const DEPENDENCIES: &[&str] = &["yt-dlp", "ffmpeg"];
+
+const DISCORD_TOKEN_ENV: &str = "DISCORD_TOKEN";
+
+fn press_any_key_to_exit() {
+    let mut _dummy = String::new();
+    eprintln!("Press any key to exit...");
+    io::stdin().read_line(&mut _dummy).unwrap();
+}
+
+pub fn verify_dependencies() -> Result<(), BotError> {
+    for dep in DEPENDENCIES {
+        match which(dep) {
+            Ok(_) => continue,
+            Err(_) => {
+                return Err(BotError::Dependency(format!("Missing dependency: {}", dep)));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn load_environment() -> Result<(), BotError> {
+    dotenv().map_err(|e| BotError::Environment(format!("Failed to load .env file: {}", e)))?;
+    Ok(())
+}
+
+async fn run() -> Result<(), BotError> {
+    load_environment()?;
+    verify_dependencies()?;
+
+    let token = config::load_string(DISCORD_TOKEN_ENV)?;
+    let mut discord_client = client::build_client(token).await?;
+    discord_client.start().await?;
+
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() {
-    setup();
-
-    let discord_client = client::build_client().await;
-    discord_client.unwrap().start().await.unwrap();
-}
-
-fn setup() {
-    match dotenv() {
-        Ok(_) => println!("Loaded .env file successfully"),
-        Err(err) => eprintln!("Warning: Could not load .env file: {}", err),
+    if let Err(e) = run().await {
+        eprintln!("Bot startup failed: {}", e);
+        press_any_key_to_exit();
+        std::process::exit(1);
     }
-
-    for dep in &["yt-dlp", "ffmpeg"] {
-        which(dep).unwrap_or_else(|_| {
-            eprintln!("Error: `{}` not found in PATH", dep);
-            std::process::exit(1);
-        });
-    }
-    println!("All dependencies found");
 }

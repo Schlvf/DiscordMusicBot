@@ -13,8 +13,7 @@ pub struct Data {
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 pub type Context<'a> = poise::Context<'a, Data, Error>;
 
-pub async fn build_client() -> Result<Client, SerenityError> {
-    let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
+pub async fn build_client(token: String) -> Result<Client, SerenityError> {
     let intents = GatewayIntents::non_privileged();
 
     let framework = Framework::builder()
@@ -24,6 +23,7 @@ pub async fn build_client() -> Result<Client, SerenityError> {
         })
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
+                println!("Logged in as {}", _ready.user.name);
                 builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     http_client: HttpClient::new(),
