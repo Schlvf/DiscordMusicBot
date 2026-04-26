@@ -1,6 +1,5 @@
 use crate::commands;
-
-use poise::serenity_prelude::prelude::SerenityError;
+use crate::errors::BotError;
 use poise::serenity_prelude::{Client, ClientBuilder, GatewayIntents};
 use poise::{builtins, Command, Framework, FrameworkOptions};
 use reqwest::Client as HttpClient;
@@ -10,10 +9,10 @@ pub struct Data {
     pub http_client: HttpClient,
 }
 
-pub type Error = Box<dyn std::error::Error + Send + Sync>;
+pub type Error = BotError;
 pub type Context<'a> = poise::Context<'a, Data, Error>;
 
-pub async fn build_client(token: String) -> Result<Client, SerenityError> {
+pub async fn build_client(token: String) -> Result<Client, BotError> {
     let intents = GatewayIntents::non_privileged();
 
     let framework = Framework::builder()
@@ -36,6 +35,7 @@ pub async fn build_client(token: String) -> Result<Client, SerenityError> {
         .framework(framework)
         .register_songbird()
         .await
+        .map_err(|e| BotError::Client(e.to_string()))
 }
 
 fn get_registered_commands() -> Vec<Command<Data, Error>> {

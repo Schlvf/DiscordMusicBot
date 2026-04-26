@@ -1,4 +1,5 @@
 use crate::client::{Context, Error};
+use crate::errors::CommandError;
 use poise::serenity_prelude::GuildId;
 use songbird::input::{Compose, YoutubeDl};
 use songbird::{Call, Songbird};
@@ -9,11 +10,11 @@ use std::sync::Arc;
 async fn get_manager(ctx: &Context<'_>) -> Result<Arc<Songbird>, Error> {
     songbird::get(ctx.serenity_context())
         .await
-        .ok_or_else(|| "Songbird not initialized".into())
+        .ok_or_else(|| CommandError::SongbirdNotInitialized.into())
 }
 
 fn get_guild_id(ctx: &Context<'_>) -> Result<GuildId, Error> {
-    ctx.guild_id().ok_or_else(|| "Not in a guild".into())
+    ctx.guild_id().ok_or_else(|| CommandError::NotInGuild.into())
 }
 
 async fn get_call(
@@ -22,20 +23,7 @@ async fn get_call(
 ) -> Result<std::sync::Arc<tokio::sync::Mutex<Call>>, Error> {
     manager
         .get(guild_id)
-        .ok_or_else(|| -> Error { "Not connected to a voice channel".into() })
-}
-
-// Small helper to convert errors into user messages
-macro_rules! user_error {
-    ($ctx:expr, $expr:expr) => {
-        match $expr {
-            Ok(val) => val,
-            Err(err) => {
-                $ctx.say(err.to_string()).await?;
-                return Ok(());
-            }
-        }
-    };
+        .ok_or_else(|| CommandError::NotConnected.into())
 }
 
 // ---------- Commands ----------
@@ -51,7 +39,7 @@ pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
 pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;
 
-    let guild_id = user_error!(ctx, get_guild_id(&ctx));
+    let guild_id = get_guild_id(&ctx)?;
 
     let channel_id = match ctx.guild().and_then(|g| {
         g.voice_states
@@ -65,15 +53,10 @@ pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
         }
     };
 
-    let manager = user_error!(ctx, get_manager(&ctx).await);
+    let manager = get_manager(&ctx).await?;
 
-    if let Err(err) = manager.join(guild_id, channel_id).await {
-        ctx.say("Failed to join voice channel").await?;
-        eprintln!("Join error: {:?}", err);
-    } else {
-        ctx.say("Joined voice channel").await?;
-    }
-
+    manager.join(guild_id, channel_id).await?;
+    ctx.say("Joined voice channel").await?;
     Ok(())
 }
 
@@ -81,8 +64,8 @@ pub async fn join(ctx: Context<'_>) -> Result<(), Error> {
 pub async fn leave(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;
 
-    let guild_id = user_error!(ctx, get_guild_id(&ctx));
-    let manager = user_error!(ctx, get_manager(&ctx).await);
+    let guild_id = get_guild_id(&ctx)?;
+    let manager = get_manager(&ctx).await?;
 
     if manager.get(guild_id).is_none() {
         ctx.say("Not connected").await?;
@@ -107,8 +90,8 @@ pub async fn play(
         return Ok(());
     }
 
-    let guild_id = user_error!(ctx, get_guild_id(&ctx));
-    let manager = user_error!(ctx, get_manager(&ctx).await);
+    let guild_id = get_guild_id(&ctx)?;
+    let manager = get_manager(&ctx).await?;
     let call_mutex = get_call(&manager, guild_id).await?;
     let mut call = call_mutex.lock().await;
 
@@ -139,15 +122,15 @@ async fn handle_queue_action<F>(ctx: Context<'_>, action: F, success_msg: &str) 
 where
     F: FnOnce(&Call) -> Result<(), songbird::error::ControlError>,
 {
-    let guild_id = user_error!(ctx, get_guild_id(&ctx));
-    let manager = user_error!(ctx, get_manager(&ctx).await);
+    let guild_id = get_guild_id(&ctx)?;
+    let manager = get_manager(&ctx).await?;
     let call_mutex = get_call(&manager, guild_id).await?;
     let call = call_mutex.lock().await;
 
     if let Err(err) = action(&call) {
         ctx.say("Queue operation failed").await?;
         eprintln!("Queue error: {:?}", err);
-        return Ok(());
+        return Err(err.into());
     }
 
     ctx.say(success_msg).await?;
@@ -176,8 +159,8 @@ pub async fn skip(ctx: Context<'_>) -> Result<(), Error> {
 pub async fn stop(ctx: Context<'_>) -> Result<(), Error> {
     ctx.defer().await?;
 
-    let guild_id = user_error!(ctx, get_guild_id(&ctx));
-    let manager = user_error!(ctx, get_manager(&ctx).await);
+    let guild_id = get_guild_id(&ctx)?;
+    let manager = get_manager(&ctx).await?;
     let call_mutex = get_call(&manager, guild_id).await?;
     let call = call_mutex.lock().await;
 
