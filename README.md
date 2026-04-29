@@ -45,6 +45,8 @@ Here's a brief description of all the commands available:
 
 5. **You can host the bot for multiple Discord servers at the same time but this doesn't mean that you should**. Please note that if your bot receives a large amount of request in a short span of time Youtube will rate-limit and will prevent it from working as intended for a certain period of time
 
+6. **You can configure the default volume** by setting the `MUSIC_VOLUME` environment variable to a value between 0.0 and 1.0 (e.g., `MUSIC_VOLUME=0.5` for 50% volume). The default volume is 0.1 (10%) if not specified
+
 ## For developers
 
 As the creator of the project I have no plans of implementing new features given that the main goal was already achieved but I will do my best to maintain it functional. Nonetheless, feel free to fork, modify, and build upon it as long as it is done under the same license (GPL-3.0) and with proper attribution
